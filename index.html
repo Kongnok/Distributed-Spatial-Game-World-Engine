@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Distributed World — Dashboard</title>
+<style>
+  /* ------------------------------------------------------------------ */
+  /* Design direction: industrial terminal / CRT monitor aesthetic        */
+  /* Monospace everything, scanline overlay, phosphor glow, hard edges    */
+  /* ------------------------------------------------------------------ */
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap');
+
+  :root {
+    --bg:          #0a0c0a;
+    --panel:       #0f120f;
+    --border:      #1e2e1e;
+    --accent:      #39ff14;       /* neon green phosphor */
+    --accent-dim:  #1a7a07;
+    --accent-glow: rgba(57,255,20,0.15);
+    --warn:        #ff6b00;
+    --dead:        #3a1010;
+    --dead-text:   #7a2020;
+    --text:        #b8d4b0;
+    --text-dim:    #4a6444;
+    --grid:        rgba(57,255,20,0.06);
+    --font-mono:   'Share Tech Mono', monospace;
+    --font-display:'VT323', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    overflow: hidden;
+  }
+
+  /* scanline overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 2px,
+      rgba(0,0,0,0.18) 2px,
+      rgba(0,0,0,0.18) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Layout                                                               */
+  /* ------------------------------------------------------------------ */
+  #app {
+    display: grid;
+    grid-template-rows: 44px 1fr 36px;
+    grid-template-columns: 1fr 220px;
+    height: 100vh;
+    gap: 1px;
+    background: var(--border);
+  }
+
+  /* Header */
+  #header {
+    grid-column: 1 / -1;
+    background: var(--panel);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  #header h1 {
+    font-family: var(--font-display);
+    font-size: 28px;
+    color: var(--accent);
+    text-shadow: 0 0 12px var(--accent);
+    letter-spacing: 2px;
+    line-height: 1;
+  }
+  #header .subtitle {
+    color: var(--text-dim);
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+  #header .dot-status {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+  }
+  #pulse {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 1s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0.3; }
+  }
+
+  /* Canvas area */
+  #canvas-wrap {
+    background: var(--panel);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+    /* border will be drawn in JS */
+  }
+
+  /* Right panel */
+  #sidebar {
+    background: var(--panel);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    overflow: hidden;
+  }
+
+  .node-card {
+    flex: 1;
+    padding: 10px 12px;
+    background: var(--panel);
+    border-left: 2px solid var(--accent-dim);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: border-color 0.3s, background 0.3s;
+  }
+  .node-card.dead {
+    border-left-color: var(--dead-text);
+    background: var(--dead);
+  }
+  .node-card .node-label {
+    font-family: var(--font-display);
+    font-size: 22px;
+    color: var(--accent);
+    text-shadow: 0 0 8px var(--accent-dim);
+    line-height: 1;
+  }
+  .node-card.dead .node-label { color: var(--dead-text); text-shadow: none; }
+  .node-card .node-port {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+  .node-card .bot-count {
+    font-size: 32px;
+    font-family: var(--font-display);
+    color: var(--accent);
+    line-height: 1;
+    margin-top: auto;
+  }
+  .node-card.dead .bot-count { color: var(--dead-text); }
+  .node-card .bot-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .node-card .status-badge {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 2px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    display: inline-block;
+    width: fit-content;
+  }
+  .node-card.dead .status-badge {
+    background: var(--dead);
+    color: var(--dead-text);
+  }
+
+  /* Footer */
+  #footer {
+    grid-column: 1 / -1;
+    background: var(--panel);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 24px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  #footer span { letter-spacing: 1px; }
+  #footer .total { color: var(--accent); }
+  #footer .fps   { margin-left: auto; }
+
+  /* ------------------------------------------------------------------ */
+  /* Canvas background grid (drawn in JS, but the bg color sets tone)    */
+  /* ------------------------------------------------------------------ */
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header id="header">
+    <h1>DISTRIBUTED WORLD</h1>
+    <span class="subtitle">NODE MONITOR / LIVE VIEW</span>
+    <div class="dot-status">
+      <div id="pulse"></div>
+      <span id="poll-status">POLLING</span>
+    </div>
+  </header>
+
+  <main id="canvas-wrap">
+    <canvas id="world"></canvas>
+  </main>
+
+  <aside id="sidebar">
+    <!-- Node cards injected by JS -->
+  </aside>
+
+  <footer id="footer">
+    <span>POLL: <span class="total" id="f-poll">100ms</span></span>
+    <span>TOTAL BOTS: <span class="total" id="f-total">0</span></span>
+    <span>LAST UPDATE: <span class="total" id="f-time">--</span></span>
+    <span class="fps" id="f-fps">0 FPS</span>
+  </footer>
+
+</div>
+
+<script>
+// -------------------------------------------------------------------------
+// Constants — must match config.py
+// -------------------------------------------------------------------------
+const WORLD_W = 200;
+const WORLD_H = 200;
+const MID_X   = 100;
+const MID_Y   = 100;
+const POLL_MS = 100;
+
+const NODES = [
+  { id: 1, port: 8001, label: "NW", x: 0,   y: MID_Y+1, w: MID_X,   h: WORLD_H - MID_Y - 1 },
+  { id: 2, port: 8002, label: "NE", x: MID_X+1, y: MID_Y+1, w: WORLD_W - MID_X - 1, h: WORLD_H - MID_Y - 1 },
+  { id: 3, port: 8003, label: "SW", x: 0,   y: 0, w: MID_X, h: MID_Y },
+  { id: 4, port: 8004, label: "SE", x: MID_X+1, y: 0, w: WORLD_W - MID_X - 1, h: MID_Y },
+];
+
+// -------------------------------------------------------------------------
+// Canvas setup
+// -------------------------------------------------------------------------
+const canvas  = document.getElementById("world");
+const ctx     = canvas.getContext("2d");
+const wrap    = document.getElementById("canvas-wrap");
+
+// Scale: fit the canvas in the container while keeping 1:1 aspect ratio
+// We draw in world-space coords and scale via ctx.setTransform
+let SCALE = 1;
+
+function resizeCanvas() {
+  const size = Math.min(wrap.clientWidth, wrap.clientHeight) - 32;
+  canvas.width  = size;
+  canvas.height = size;
+  SCALE = size / WORLD_W;
+}
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
+
+// -------------------------------------------------------------------------
+// Sidebar node cards
+// -------------------------------------------------------------------------
+const sidebar   = document.getElementById("sidebar");
+const nodeCards = {};
+
+NODES.forEach(n => {
+  const card = document.createElement("div");
+  card.className = "node-card";
+  card.id = `card-${n.id}`;
+  card.innerHTML = `
+    <div class="node-label">${n.label}</div>
+    <div class="node-port">PORT ${n.port} · NODE ${n.id}</div>
+    <div class="bot-count" id="count-${n.id}">0</div>
+    <div class="bot-label">BOTS</div>
+    <div class="status-badge" id="badge-${n.id}">ONLINE</div>
+  `;
+  sidebar.appendChild(card);
+  nodeCards[n.id] = card;
+});
+
+// -------------------------------------------------------------------------
+// State
+// -------------------------------------------------------------------------
+let allBots       = {};    // { bot_id: botObj } — merged from all nodes
+let nodeStatus    = {};    // { nodeId: "online" | "dead" }
+let lastFrameTime = performance.now();
+let frameCount    = 0;
+let fps           = 0;
+
+NODES.forEach(n => nodeStatus[n.id] = "online");
+
+// -------------------------------------------------------------------------
+// Polling
+// -------------------------------------------------------------------------
+async function fetchNode(node) {
+  try {
+    const resp = await fetch(`http://127.0.0.1:${node.port}/get_all_bots`, {
+      signal: AbortSignal.timeout(500)
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    return { nodeId: node.id, bots: data.bots, alive: true };
+  } catch {
+    return { nodeId: node.id, bots: [], alive: false };
+  }
+}
+
+async function pollAll() {
+  const results = await Promise.all(NODES.map(fetchNode));
+
+  // Merge all bots from all alive nodes
+  const merged = {};
+  results.forEach(({ nodeId, bots, alive }) => {
+    nodeStatus[nodeId] = alive ? "online" : "dead";
+    bots.forEach(b => { merged[b.id] = b; });
+
+    // Update sidebar card
+    const card  = nodeCards[nodeId];
+    const count = document.getElementById(`count-${nodeId}`);
+    const badge = document.getElementById(`badge-${nodeId}`);
+
+    if (alive) {
+      card.classList.remove("dead");
+      badge.textContent = "ONLINE";
+      count.textContent = bots.length;
+    } else {
+      card.classList.add("dead");
+      badge.textContent = "DEAD";
+      count.textContent = "–";
+    }
+  });
+
+  allBots = merged;
+
+  // Footer stats
+  document.getElementById("f-total").textContent = Object.keys(merged).length;
+  document.getElementById("f-time").textContent  =
+    new Date().toTimeString().slice(0, 8);
+}
+
+// -------------------------------------------------------------------------
+// Rendering
+// -------------------------------------------------------------------------
+function drawFrame() {
+  const W = canvas.width;
+  const H = canvas.height;
+
+  // Clear
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = "#0a0c0a";
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle dot grid
+  ctx.fillStyle = "rgba(57,255,20,0.04)";
+  const step = Math.round(10 * SCALE);
+  for (let gx = 0; gx < W; gx += step) {
+    for (let gy = 0; gy < H; gy += step) {
+      ctx.fillRect(gx, gy, 1, 1);
+    }
+  }
+
+  // Quadrant boundary lines
+  const midPx = Math.round(MID_X * SCALE);
+  const midPy = Math.round(MID_Y * SCALE);
+
+  ctx.save();
+  ctx.setLineDash([4, 6]);
+  ctx.strokeStyle = "rgba(57,255,20,0.25)";
+  ctx.lineWidth = 1;
+
+  // Vertical divider
+  ctx.beginPath();
+  ctx.moveTo(midPx, 0);
+  ctx.lineTo(midPx, H);
+  ctx.stroke();
+
+  // Horizontal divider
+  ctx.beginPath();
+  ctx.moveTo(0, midPy);
+  ctx.lineTo(W, midPy);
+  ctx.stroke();
+  ctx.restore();
+
+  // World border
+  ctx.strokeStyle = "rgba(57,255,20,0.5)";
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([]);
+  ctx.strokeRect(0.75, 0.75, W - 1.5, H - 1.5);
+
+  // Quadrant labels
+  ctx.font = `bold ${Math.round(14 * SCALE / 2)}px 'VT323', monospace`;
+  ctx.fillStyle = "rgba(57,255,20,0.18)";
+  const pad = 8;
+  const lh  = Math.round(14 * SCALE / 2) + 2;
+  // NW top-left
+  ctx.fillText("NW", pad, lh + pad);
+  // NE top-right
+  ctx.textAlign = "right";
+  ctx.fillText("NE", W - pad, lh + pad);
+  // SW bottom-left
+  ctx.textAlign = "left";
+  ctx.fillText("SW", pad, H - pad);
+  // SE bottom-right
+  ctx.textAlign = "right";
+  ctx.fillText("SE", W - pad, H - pad);
+  ctx.textAlign = "left";
+
+  // Bots
+  // The world Y is 0=bottom, canvas Y is 0=top — flip Y
+  const bots = Object.values(allBots);
+  for (const bot of bots) {
+    const cx = bot.x * SCALE;
+    const cy = (WORLD_H - bot.y) * SCALE;  // flip Y axis
+    const r  = Math.max(3, 3.5 * SCALE / 4);
+
+    // Glow halo
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 2.2, 0, Math.PI * 2);
+    ctx.fillStyle = hexToRgba(bot.color, 0.18);
+    ctx.fill();
+
+    // Solid dot
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = bot.color;
+    ctx.fill();
+  }
+
+  // FPS counter
+  frameCount++;
+  const now = performance.now();
+  if (now - lastFrameTime >= 1000) {
+    fps = frameCount;
+    frameCount = 0;
+    lastFrameTime = now;
+    document.getElementById("f-fps").textContent = `${fps} FPS`;
+  }
+
+  requestAnimationFrame(drawFrame);
+}
+
+// -------------------------------------------------------------------------
+// Utility
+// -------------------------------------------------------------------------
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// -------------------------------------------------------------------------
+// Boot
+// -------------------------------------------------------------------------
+(async function boot() {
+  // First poll immediately so canvas isn't empty
+  await pollAll();
+
+  // Then poll on interval
+  setInterval(pollAll, POLL_MS);
+
+  // Start render loop
+  requestAnimationFrame(drawFrame);
+
+  console.log("[Dashboard] Polling all 4 nodes every 100ms");
+})();
+</script>
+</body>
+</html>
