@@ -12,7 +12,7 @@
 * **Name:** Naufal Irham Habibib
 * **NRP:** 152024186
 
-* * **Name:** Fender Valent Bagus Syahputra
+* **Name:** Fender Valent Bagus Syahputra
 * **NRP:** 152024190
 ---
 
