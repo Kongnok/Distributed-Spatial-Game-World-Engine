@@ -9,10 +9,10 @@
 * **Name:** Nusa Sofyan Auliya Akbar
 * **NRP:** 152024169
 
-* **Name:** Naufal Irham Habibib
+* **Name:** Fender Valent Bagus Syahputra
 * **NRP:** 152024186
 
-* **Name:** Fender Valent Bagus Syahputra
+* **Name:** Naufal Irham Habibi
 * **NRP:** 152024190
 ---
 
