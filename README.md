@@ -9,6 +9,11 @@
 * **Name:** Nusa Sofyan Auliya Akbar
 * **NRP:** 152024169
 
+* **Name:** Naufal Irham Habibib
+* **NRP:** 152024186
+
+* * **Name:** Fender Valent Bagus Syahputra
+* **NRP:** 152024190
 ---
 
 ## Architectural Overview
